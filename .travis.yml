@@ -7,7 +7,7 @@ install: true
 
 branches:
   only:
-  - $branch
+  - csye6225-spring2018-sat-lab
 
 script:
   - pwd
