@@ -1,9 +1,59 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
-    "Description": "Launch EC2 Instance - CSYE 6225 Spring 2018",
+    "Description": "Launch EC2 & RDS Instance - CSYE 6225 Spring 2018",
     "Resources": {
+        "dbSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "db security group",
+                "VpcId": "vpc-b5719ecd",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3306",
+                        "ToPort": "3306",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        },
+        "RdsSubnetGroup": {
+            "Type": "AWS::RDS::DBSubnetGroup",
+            "Properties": {
+                "DBSubnetGroupDescription": "db subgroup",
+                "SubnetIds": [
+                    "subnet-4e1db42a",
+                    "subnet-6d34db42"
+                ]
+            }
+        },
+        "MyDB": {
+            "Type": "AWS::RDS::DBInstance",
+            "Properties": {
+                "AllocatedStorage": "20",
+                "DBInstanceClass": "db.t2.micro",
+                "DBInstanceIdentifier": "csye6225-fall2017-2",
+                "PubliclyAccessible": "false",
+                "Engine": "MySQL",
+                "EngineVersion": "5.6.35",
+                "MasterUsername": "csye6225master",
+                "MasterUserPassword": "csye6225password",
+                "DBName": "csye6225",
+                "MultiAZ": "false",
+                "VPCSecurityGroups": [
+                    {
+                        "Ref": "dbSecurityGroup"
+                    }
+                ],
+                "DBSubnetGroupName": {
+                    "Ref": "RdsSubnetGroup"
+                }
+            },
+            "DeletionPolicy": "Snapshot"
+        },
         "EC2Instance": {
             "Type": "AWS::EC2::Instance",
+            "DependsOn": "MyDB",
             "Properties": {
                 "ImageId": "ami-66506c1c",
                 "InstanceType": "t2.micro",
@@ -15,22 +65,37 @@
                 "UserData": {
                     "Fn::Base64": {
                         "Fn::Join": [
-                            "",
+                            "\n",
                             [
-                                "#!/bin/bash -xe \n",
-                                "sudo apt-get update \n",
-                                "sudo apt-get install openjdk-8-jdk -y\n",
-                                "sudo apt-get install ruby -y \n",
-                                "sudo apt-get install wget -y \n",
-                                "sudo apt-get install python -y \n",
-                                "sudo apt-get update \n",
-                                "sudo wget https://aws-codedeploy-us-east-1.s3.amazonaws.com/latest/install \n",
-                                "sudo chmod +x ./install \n",
-                                "sudo ./install auto \n",
-                                "sudo service codedeploy-agent start \n",
-                                "sudo apt-get install tomcat8 -y \n",
-                                "sudo echo \"JAVA_OPTS=\\\"\\${JAVA_OPTS} -Dspring.profiles.active=aws\\\"\" >> /etc/default/tomcat8 \n",
-                                "sudo service tomcat8 restart \n"
+                                "#!/bin/bash -xe ",
+                                "sudo apt-get update ",
+                                "sudo apt-get install openjdk-8-jdk -y",
+                                "sudo apt-get install ruby -y ",
+                                "sudo apt-get install wget -y ",
+                                "sudo apt-get install python -y ",
+                                "sudo apt-get update ",
+                                "sudo wget https://aws-codedeploy-us-east-1.s3.amazonaws.com/latest/install ",
+                                "sudo chmod +x ./install ",
+                                "sudo ./install auto ",
+                                "sudo service codedeploy-agent start ",
+                                "sudo apt-get install tomcat8 -y ",
+                                "sudo echo \"JAVA_OPTS=\\\"\\${JAVA_OPTS} -Dspring.datasource.username=csye6225master -Dspring.datasource.password=csye6225password  -Dspring.profiles.active=aws\\\"\" >> /etc/default/tomcat8 ",
+                                {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "echo 'JAVA_OPTS=\"${JAVA_OPTS} -Dspring.datasource.url=\\\"jdbc:mysql://",
+                                            {
+                                                "Fn::GetAtt": [
+                                                    "MyDB",
+                                                    "Endpoint.Address"
+                                                ]
+                                            },
+                                            ":3306/csye6225\\\"\"' >> /etc/default/tomcat8"
+                                        ]
+                                    ]
+                                },
+                                "sudo service tomcat8 restart "
                             ]
                         ]
                     }
